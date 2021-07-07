@@ -1,8 +1,10 @@
 import requests, os, os.path, threading
+from bs4 import BeautifulSoup
 
-URL = "https://t.dogehls.xyz/galleries/"
+URL = "https://t.dogehls.xyz/galleries/" # Url where manga pages are saved
 
 formats = {
+	# Image formats
 	"jpg": 0,
 	"png": 1,
 	"jpeg": 2,
@@ -12,12 +14,6 @@ def readCodes():
 	with open("./codes.txt", "r") as file:
 		return file.readlines()
 
-def downloadAndSaveHTML(url):
-	""" Download the HTML to search useful info later """
-	r = requests.get(url = url)
-
-	with open("page.html", "wb") as file:
-		file.write(r.content)
 
 def writeImage(imageName, requestImage):
 	""" Literaly writes an image """
@@ -25,17 +21,32 @@ def writeImage(imageName, requestImage):
 	with open(imageName, "wb") as output:
 		output.write(requestImage.content)
 
-def getInfo():
-	""" Open the HTML of the doujinshi and search for useful info """
 
-	with open("page.html", "r") as file:
-		file = file.readlines()
+def getInfo(url):
+	""" Search for the internal_code, image_format and pages number """
 
-	code = file[114].split('"')[1].split("/")[4]
-	defaultImgFormat = file[114].split('"')[1].split(".")[-1]
-	pages = file[121].split(">")[6][:-6]
+	r = requests.get(url)
+	soup = BeautifulSoup(r.content, "lxml")
 
-	return code, pages, defaultImgFormat
+	# Search for an image tag like this: <img src="https://t.dogehls.xyz/galleries/1890817/1.jpg" width="1280" height="1807" class="fit-horizontal" />
+	# "/3518908175705/" is an internal folder in the server that contains all media of manga
+	# As you can see, the url has the code and the image format that images are using. In this case jpg
+	# By example, https://t.dogehls.xyz/galleries/1890817/2.jpg should be the root for the image two
+	
+	info = soup.find("img", {"class": "fit-horizontal"})
+
+	# Split info to something like this: ['https:', '', 't.dogehls.xyz', 'galleries', '1890817', '1.jpg']
+	# There we have the code in the index 4 and the image name in the index 5
+	splitted_info = info.attrs["src"].split("/")
+
+	internal_code = splitted_info[4]
+	image_format = splitted_info[5].split(".")[1]
+
+	# Search for a span tag with "num-pages" class
+	pages_number = int(soup.find("span", {"class": "num-pages"}).text)
+
+	return internal_code, image_format, pages_number
+
 
 def downloadImage(url, imageName, format_):
 	""" Download an image from a web server """
@@ -53,23 +64,19 @@ def downloadImage(url, imageName, format_):
 def main():
 	file = readCodes()
 
-	for hentaiCode in file:
-		hentaiCode = hentaiCode.rstrip() # Delete a '\n' at the end of the line
+	for hentai_code in file:
+		hentai_code = hentai_code.rstrip() # Delete a '\n' at the end of the line
 
-		os.mkdir(hentaiCode) if not os.path.exists(hentaiCode) else lambda: 0 # If the folder exist's it will do nothing 
+		if not os.path.exists(hentai_code):
+			os.mkdir(hentai_code)
 
-		downloadAndSaveHTML(f"https://nhentai.to/g/{hentaiCode}/1")
-		code, pages, defaultImgFormat = getInfo()
+		internal_code, default_img_format, pages_number = getInfo(f"https://nhentai.to/g/{hentai_code}/1")
 
+		for i in range(1, int(pages_number) + 1):
+			url = f"{URL}{internal_code}/{i}" # Example: https://t.dogehls.xyz/galleries/1944372/
 
-		for i in range(1, int(pages) + 1):
-			url = f"{URL}{code}/{i}" # Example: https://t.dogehls.xyz/galleries/  1944372  /  1.png
-
-			t = threading.Thread(target = downloadImage, args = (url, f"./{hentaiCode}/{i}", formats[defaultImgFormat]))
+			t = threading.Thread(target = downloadImage, args=(url, f"./{hentai_code}/{i}", formats[default_img_format]))
 			t.start()
-
-
-	os.remove("page.html")
 
 
 if __name__ == "__main__":
