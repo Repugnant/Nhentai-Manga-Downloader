@@ -72,7 +72,7 @@ def main():
 
 		internal_code, default_img_format, pages_number = getInfo(f"https://nhentai.to/g/{hentai_code}/1")
 
-		for i in range(1, int(pages_number) + 1):
+		for i in range(1, pages_number + 1):
 			url = f"{URL}{internal_code}/{i}" # Example: https://t.dogehls.xyz/galleries/1944372/
 
 			t = threading.Thread(target = downloadImage, args=(url, f"./{hentai_code}/{i}", formats[default_img_format]))
